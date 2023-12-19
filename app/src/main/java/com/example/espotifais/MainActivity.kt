@@ -28,9 +28,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.example.espotifais.ui.theme.EspotifaisTheme
-import kotlinx.coroutines.launch
+
 
 data class Cancion(val nombre: String, val cantantes: String, val caratula: Int, val duracion: String)
 
@@ -45,29 +44,22 @@ class CancionViewModel : ViewModel() {
     )
 
     var indiceCancionActual = mutableStateOf(0)
+    var cancionActual = mutableStateOf(canciones[indiceCancionActual.value])
 
-    fun getCancionActual(): Cancion {
-        return canciones[indiceCancionActual.value]
+    fun siguienteCancion() {
+        indiceCancionActual.value = (indiceCancionActual.value + 1) % canciones.size
+        cancionActual.value = canciones[indiceCancionActual.value]
     }
 
     fun cancionAnterior() {
-        viewModelScope.launch {
-            if (indiceCancionActual.value > 0) {
-                indiceCancionActual.value--
-            }
-        }
-    }
-
-    fun proximaCancion() {
-        viewModelScope.launch {
-            if (indiceCancionActual.value < canciones.size - 1) {
-                indiceCancionActual.value++
-            }
-        }
+        indiceCancionActual.value = (indiceCancionActual.value - 1 + canciones.size) % canciones.size
+        cancionActual.value = canciones[indiceCancionActual.value]
     }
 }
 
 class MainActivity : ComponentActivity() {
+    private val viewModel = CancionViewModel()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -76,7 +68,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    MusicPlayer()
+                    MusicPlayer(viewModel)
                 }
             }
         }
@@ -84,9 +76,8 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MusicPlayer() {
-    val viewModel = CancionViewModel()
-    val cancionActual = viewModel.getCancionActual()
+fun MusicPlayer(viewModel: CancionViewModel) {
+    val cancionActual by viewModel.cancionActual
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -115,7 +106,7 @@ fun MusicPlayer() {
             IconButton(onClick = { }) { Icon(Icons.Default.Shuffle, contentDescription = null) }
             IconButton(onClick = { viewModel.cancionAnterior() }) { Icon(Icons.Default.SkipPrevious, contentDescription = null) }
             IconButton(onClick = { }, modifier = Modifier.background(shape = RoundedCornerShape(50.dp), color=Color.Blue)) { Icon(Icons.Default.PlayArrow, contentDescription=null)}
-            IconButton(onClick = { viewModel.proximaCancion() }) { Icon(Icons.Default.SkipNext, contentDescription=null)}
+            IconButton(onClick = { viewModel.siguienteCancion() }) { Icon(Icons.Default.SkipNext, contentDescription=null)}
             IconButton(onClick = { }) { Icon(Icons.Default.Repeat, contentDescription=null)}
         }
     }
