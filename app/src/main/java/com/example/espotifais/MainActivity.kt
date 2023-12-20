@@ -1,5 +1,7 @@
 package com.example.espotifais
 
+import android.content.Context
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -8,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Shuffle
@@ -28,40 +31,74 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
+import androidx.media3.common.MediaItem
 import com.example.espotifais.ui.theme.EspotifaisTheme
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+data class Cancion(val nombre: String, val cantantes: String, val caratula: Int, val duracion: String, val ruta: String)
 
-
-data class Cancion(val nombre: String, val cantantes: String, val caratula: Int, val duracion: String)
-
-class CancionViewModel : ViewModel() {
+class CancionViewModel(private val context: Context) : ViewModel() {
 
     private val canciones = listOf(
-        Cancion("Moonlight", "Cruz Cafuné, Alba Reche", R.drawable.moonlight, "03:45"),
-        Cancion("CAMBIAR EL MUNDO", "Bejo, Cookin Soul", R.drawable.cambiarelmundo, "04:30"),
-        Cancion("Guillao", "La Pantera, Juseph, Bdp Music", R.drawable.guillao, "02:50"),
-        Cancion("Ganas", "Maikel Delacalle", R.drawable.ganas, "05:15"),
-        Cancion("LEONARDO FLEXXO", "La$$ Suga', Cuki Music, MPadrums", R.drawable.leonardo, "03:10")
+        Cancion("Moonlight", "Cruz Cafuné, Alba Reche", R.drawable.moonlight, "03:45", "moonlight"),
+        Cancion("CAMBIAR EL MUNDO", "Bejo, Cookin Soul", R.drawable.cambiarelmundo, "04:30", "cambiarelmundo"),
+        Cancion("Guillao", "La Pantera, Juseph, Bdp Music", R.drawable.guillao, "02:50", "guillao"),
+        Cancion("Ganas", "Maikel Delacalle", R.drawable.ganas, "05:15", "ganas"),
+        Cancion("LEONARDO FLEXXO", "La$$ Suga', Cuki Music, MPadrums", R.drawable.leonardo, "03:10", "leonardoflexxo")
     )
 
     var indiceCancionActual = mutableStateOf(0)
     var cancionActual = mutableStateOf(canciones[indiceCancionActual.value])
+    var player: Player? = null
+    var isPlaying = mutableStateOf(false)
+
+    init {
+        player = ExoPlayer.Builder(context).build()
+        prepararCancion()
+    }
+
+    fun togglePlayPause() {
+        if (isPlaying.value) {
+            player?.pause()
+        } else {
+            player?.play()
+        }
+        isPlaying.value = !isPlaying.value
+    }
 
     fun siguienteCancion() {
         indiceCancionActual.value = (indiceCancionActual.value + 1) % canciones.size
         cancionActual.value = canciones[indiceCancionActual.value]
+        prepararCancion()
+        player?.play()
+        isPlaying.value = true
     }
 
     fun cancionAnterior() {
         indiceCancionActual.value = (indiceCancionActual.value - 1 + canciones.size) % canciones.size
         cancionActual.value = canciones[indiceCancionActual.value]
+        prepararCancion()
+        player?.play()
+        isPlaying.value = true
+    }
+
+    private fun prepararCancion() {
+        val uri = Uri.parse("android.resource://tu.nombre.de.paquete/" + context.resources.getIdentifier(cancionActual.value.ruta, "raw", context.packageName))
+        player?.setMediaItem(MediaItem.fromUri(uri))
+        player?.prepare()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        player?.release()
     }
 }
-
 class MainActivity : ComponentActivity() {
-    private val viewModel = CancionViewModel()
+    private lateinit var viewModel: CancionViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        viewModel = CancionViewModel(this)
         setContent {
             EspotifaisTheme {
                 Surface(
@@ -105,7 +142,13 @@ fun MusicPlayer(viewModel: CancionViewModel) {
         ) {
             IconButton(onClick = { }) { Icon(Icons.Default.Shuffle, contentDescription = null) }
             IconButton(onClick = { viewModel.cancionAnterior() }) { Icon(Icons.Default.SkipPrevious, contentDescription = null) }
-            IconButton(onClick = { }, modifier = Modifier.background(shape = RoundedCornerShape(50.dp), color=Color.Blue)) { Icon(Icons.Default.PlayArrow, contentDescription=null)}
+            IconButton(onClick = { viewModel.togglePlayPause() },modifier = Modifier.background(shape = RoundedCornerShape(50.dp), color=Color.Blue)) {
+                if (viewModel.isPlaying.value) {
+                    Icon(Icons.Default.Pause, contentDescription=null)
+                } else {
+                    Icon(Icons.Default.PlayArrow, contentDescription=null)
+                }
+            }
             IconButton(onClick = { viewModel.siguienteCancion() }) { Icon(Icons.Default.SkipNext, contentDescription=null)}
             IconButton(onClick = { }) { Icon(Icons.Default.Repeat, contentDescription=null)}
         }
