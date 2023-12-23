@@ -59,6 +59,13 @@ class CancionViewModel(private val context: Context) : ViewModel() {
     init {
         player = ExoPlayer.Builder(context).build()
         prepararCancion()
+        player?.addListener(object : Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_ENDED) {
+                    siguienteCancion()
+                }
+            }
+        })
     }
 
     fun togglePlayPause() {
@@ -80,15 +87,27 @@ class CancionViewModel(private val context: Context) : ViewModel() {
     }
 
     fun siguienteCancion() {
-        if (isShuffling.value) {
-            indiceCancionActual.value = (indiceCancionActual.value + Random.nextInt(canciones.size)) % canciones.size
+        if (isLooping.value) {
+            prepararCancion()
+            player?.play()
+            isPlaying.value = true
+        } else if (isShuffling.value) {
+            var nextIndex: Int
+            do {
+                nextIndex = Random.nextInt(canciones.size)
+            } while (nextIndex == indiceCancionActual.value)
+            indiceCancionActual.value = nextIndex
+            cancionActual.value = canciones[indiceCancionActual.value]
+            prepararCancion()
+            player?.play()
+            isPlaying.value = true
         } else {
             indiceCancionActual.value = (indiceCancionActual.value + 1) % canciones.size
+            cancionActual.value = canciones[indiceCancionActual.value]
+            prepararCancion()
+            player?.play()
+            isPlaying.value = true
         }
-        cancionActual.value = canciones[indiceCancionActual.value]
-        prepararCancion()
-        player?.play()
-        isPlaying.value = true
     }
 
     fun cancionAnterior() {
