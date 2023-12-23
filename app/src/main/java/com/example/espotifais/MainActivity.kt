@@ -35,6 +35,13 @@ import androidx.media3.common.MediaItem
 import com.example.espotifais.ui.theme.EspotifaisTheme
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlin.random.Random
 
 data class Cancion(val nombre: String, val cantantes: String, val caratula: Int, val duracion: String, val ruta: String)
@@ -42,19 +49,21 @@ data class Cancion(val nombre: String, val cantantes: String, val caratula: Int,
 class CancionViewModel(private val context: Context) : ViewModel() {
 
     private val canciones = listOf(
-        Cancion("Moonlight", "Cruz Cafuné, Alba Reche", R.drawable.moonlight, "03:45", "moonlight"),
-        Cancion("CAMBIAR EL MUNDO", "Bejo, Cookin Soul", R.drawable.cambiarelmundo, "04:30", "cambiarelmundo"),
-        Cancion("Guillao", "La Pantera, Juseph, Bdp Music", R.drawable.guillao, "02:50", "guillao"),
-        Cancion("Ganas", "Maikel Delacalle", R.drawable.ganas, "05:15", "ganas"),
-        Cancion("LEONARDO FLEXXO", "La$$ Suga', Cuki Music, MPadrums", R.drawable.leonardo, "03:10", "leonardoflexxo")
+        Cancion("Moonlight", "Cruz Cafuné, Alba Reche", R.drawable.moonlight, "03:13", "moonlight"),
+        Cancion("CAMBIAR EL MUNDO", "Bejo, Cookin Soul", R.drawable.cambiarelmundo, "02:56", "cambiarelmundo"),
+        Cancion("Guillao", "La Pantera, Juseph, Bdp Music", R.drawable.guillao, "03:05", "guillao"),
+        Cancion("Ganas", "Maikel Delacalle", R.drawable.ganas, "3:57", "ganas"),
+        Cancion("LEONARDO FLEXXO", "La$$ Suga', Cuki Music, MPadrums", R.drawable.leonardo, "02:11", "leonardoflexxo")
     )
 
     var indiceCancionActual = mutableStateOf(0)
     var cancionActual = mutableStateOf(canciones[indiceCancionActual.value])
+    var progresoCancion = mutableStateOf(0f)
     var player: Player? = null
     var isPlaying = mutableStateOf(false)
     var isLooping = mutableStateOf(false)
     var isShuffling = mutableStateOf(false)
+    private val scope = CoroutineScope(Dispatchers.Main)
 
     init {
         player = ExoPlayer.Builder(context).build()
@@ -71,8 +80,15 @@ class CancionViewModel(private val context: Context) : ViewModel() {
     fun togglePlayPause() {
         if (isPlaying.value) {
             player?.pause()
+            scope.coroutineContext.cancelChildren()
         } else {
             player?.play()
+            scope.launch {
+                while (isActive) {
+                    progresoCancion.value = player?.currentPosition?.toFloat() ?: 0f
+                    delay(1000)
+                }
+            }
         }
         isPlaying.value = !isPlaying.value
     }
@@ -118,6 +134,10 @@ class CancionViewModel(private val context: Context) : ViewModel() {
         isPlaying.value = true
     }
 
+    fun seekTo(position: Float) {
+        player?.seekTo(position.toLong())
+    }
+
     private fun prepararCancion() {
         val uri = Uri.parse("android.resource://tu.nombre.de.paquete/" + context.resources.getIdentifier(cancionActual.value.ruta, "raw", context.packageName))
         player?.setMediaItem(MediaItem.fromUri(uri))
@@ -127,6 +147,7 @@ class CancionViewModel(private val context: Context) : ViewModel() {
     override fun onCleared() {
         super.onCleared()
         player?.release()
+        scope.cancel()
     }
 }
 class MainActivity : ComponentActivity() {
@@ -164,12 +185,17 @@ fun MusicPlayer(viewModel: CancionViewModel) {
             Text(cancionActual.cantantes, style = MaterialTheme.typography.titleMedium)
         }
         Image(painterResource(id = cancionActual.caratula), contentDescription = null, contentScale = ContentScale.FillBounds, modifier = Modifier.weight(4f).fillMaxSize().padding(16.dp).clip(RoundedCornerShape(8.dp)))
-        Slider(value = 0.02f, onValueChange = {}, valueRange = 0f..1f, modifier = Modifier.padding(16.dp))
+        Slider(
+            value = viewModel.progresoCancion.value,
+            onValueChange = { viewModel.seekTo(it) },
+            valueRange = 0f..duracionAMilisegundos(cancionActual.duracion),
+            modifier = Modifier.padding(16.dp)
+        )
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("00:00")
+            Text(formatoTiempo(viewModel.progresoCancion.value))
             Text(cancionActual.duracion)
         }
         Row(
@@ -195,4 +221,17 @@ fun MusicPlayer(viewModel: CancionViewModel) {
             }
         }
     }
+}
+fun formatoTiempo(milisegundos: Float): String {
+    val totalSegundos = milisegundos.toInt() / 1000
+    val minutos = totalSegundos / 60
+    val segundos = totalSegundos % 60
+    return String.format("%02d:%02d", minutos, segundos)
+}
+
+fun duracionAMilisegundos(duracion: String): Float {
+    val partes = duracion.split(":")
+    val minutos = partes[0].toInt()
+    val segundos = partes[1].toInt()
+    return (minutos * 60 + segundos) * 1000f
 }
