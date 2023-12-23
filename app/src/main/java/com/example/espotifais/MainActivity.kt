@@ -35,6 +35,8 @@ import androidx.media3.common.MediaItem
 import com.example.espotifais.ui.theme.EspotifaisTheme
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import kotlin.random.Random
+
 data class Cancion(val nombre: String, val cantantes: String, val caratula: Int, val duracion: String, val ruta: String)
 
 class CancionViewModel(private val context: Context) : ViewModel() {
@@ -51,6 +53,8 @@ class CancionViewModel(private val context: Context) : ViewModel() {
     var cancionActual = mutableStateOf(canciones[indiceCancionActual.value])
     var player: Player? = null
     var isPlaying = mutableStateOf(false)
+    var isLooping = mutableStateOf(false)
+    var isShuffling = mutableStateOf(false)
 
     init {
         player = ExoPlayer.Builder(context).build()
@@ -66,8 +70,21 @@ class CancionViewModel(private val context: Context) : ViewModel() {
         isPlaying.value = !isPlaying.value
     }
 
+    fun toggleLoop() {
+        isLooping.value = !isLooping.value
+        player?.repeatMode = if (isLooping.value) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+    }
+
+    fun toggleShuffle() {
+        isShuffling.value = !isShuffling.value
+    }
+
     fun siguienteCancion() {
-        indiceCancionActual.value = (indiceCancionActual.value + 1) % canciones.size
+        if (isShuffling.value) {
+            indiceCancionActual.value = (indiceCancionActual.value + Random.nextInt(canciones.size)) % canciones.size
+        } else {
+            indiceCancionActual.value = (indiceCancionActual.value + 1) % canciones.size
+        }
         cancionActual.value = canciones[indiceCancionActual.value]
         prepararCancion()
         player?.play()
@@ -115,6 +132,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MusicPlayer(viewModel: CancionViewModel) {
     val cancionActual by viewModel.cancionActual
+    val isLooping by viewModel.isLooping
+    val isShuffling by viewModel.isShuffling
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -140,7 +159,9 @@ fun MusicPlayer(viewModel: CancionViewModel) {
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            IconButton(onClick = { }) { Icon(Icons.Default.Shuffle, contentDescription = null) }
+            IconButton(onClick = { viewModel.toggleShuffle() }) {
+                Icon(Icons.Default.Shuffle, contentDescription = null, tint = if (isShuffling) Color.Green else Color.Gray)
+            }
             IconButton(onClick = { viewModel.cancionAnterior() }) { Icon(Icons.Default.SkipPrevious, contentDescription = null) }
             IconButton(onClick = { viewModel.togglePlayPause() },modifier = Modifier.background(shape = RoundedCornerShape(50.dp), color=Color.Blue)) {
                 if (viewModel.isPlaying.value) {
@@ -150,7 +171,9 @@ fun MusicPlayer(viewModel: CancionViewModel) {
                 }
             }
             IconButton(onClick = { viewModel.siguienteCancion() }) { Icon(Icons.Default.SkipNext, contentDescription=null)}
-            IconButton(onClick = { }) { Icon(Icons.Default.Repeat, contentDescription=null)}
+            IconButton(onClick = { viewModel.toggleLoop() }) {
+                Icon(Icons.Default.Repeat, contentDescription=null, tint = if (isLooping) Color.Green else Color.Gray)
+            }
         }
     }
 }
